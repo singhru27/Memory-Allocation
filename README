@@ -1,0 +1,75 @@
+Project Overview:
+
+This implements a malloc/realloc/free memory allocation system in C. 
+
+Running the Program:
+First, run ```bash make all ``` 
+
+Then, execute 
+
+```bash ./mdriver -r ``` to launch the REPL. Once in the REPL, you can use free, realloc, and malloc to allocate and deallocate memory. A sample REPL interaction is listed below.
+
+``` bash
+An example REPL interaction is as follows:
+
+Welcome to the Malloc REPL. (Enter 'help' to see available commands.)
+> malloc 0 100
+> malloc 1 40
+> malloc 2 60
+> print
+heap size: 544
+prologue    	 block at 0x7f2aa37db010     size 16
+free block    	 block at 0x7f2aa37db020     size 256     Next: 0x7f2aa37db020
+block[2] allocated     block at 0x7f2aa37db120     size 80
+block[1] allocated     block at 0x7f2aa37db170     size 56
+block[0] allocated     block at 0x7f2aa37db1a8     size 120
+epilogue    	 block at 0x7f2aa37db220     size 16
+> free 2
+> print
+heap size: 544
+prologue    	 block at 0x7f2aa37db010     size 16
+free block    	 block at 0x7f2aa37db020     size 336     Next: 0x7f2aa37db020
+block[1] allocated     block at 0x7f2aa37db170     size 56
+block[0] allocated     block at 0x7f2aa37db1a8     size 120
+epilogue    	 block at 0x7f2aa37db220     size 16
+> free 0
+> realloc 1 100
+> print
+heap size: 544
+prologue    	 block at 0x7f2aa37db010     size 16
+free block    	 block at 0x7f2aa37db020     size 336     Next: 0x7f2aa37db020
+block[1] allocated     block at 0x7f2aa37db170     size 176
+epilogue    	 block at 0x7f2aa37db220     size 16
+```
+
+
+PROGRAM FUNCTIONALITY:
+1. Compaction Strategy
+My code utilizes a simple strategy to minimize code compaction. First, whenever the mm_free function is called, the program checks whether the block immediately prior to or the block immediately after the given block is free. If it is free, then the newly freed block is coalesced with the adjacent free blocks. The remainder of the optimizations are within the mm_free and mm_realloc commands, and are described below. 
+
+
+2. Heap Checker
+My heap checker checks for a few crucial components of program functionality. First, it checks that every element in the free list is marked as free. It also checks that there are no two adjacent free blocks in the heap (since this would indicate that coalescing has failed and reduce space utilization efficiency). It then checks to ensure that all blocks are within the bounds of the heaps and that the tags are aligned. Finally, it checks that the end tags on the block match the beginning tags (both for size and allocation. Any time that the check_heap function detects an error, a descriptive error message is printed out and the program terminates. 
+
+
+3. mm_realloc() strategy/optimizations 
+My realloc utilizes a variety of strategies to maximize space utilization and improve overall program efficiency. 
+
+Case 1 - Reallocing to a smaller size
+If the realloc command is called with a smaller size, the data in the current block is not moved to a different block to prevent unnecessary additional operations. To maximize space utilization, the function first checks if the requested size is small enough such that reducing the current block to this size would create a new free block which is larger than the minimum block size of 32 bytes. IF it does, the the current block is split into the requested size and a new free block. If the new free block would not be as large as the minimum size, however, the same block is simply returned with no splitting. This is because splitting would end up creating a new block that could not be used (creating extra space usage and wasting processor resources)
+
+Case 2 - Reallocing to a larger size
+If the realloc command is called with a larger size than the current block, the function first checks if the block immediately following the current block is free. If it is, and the combined size of the two blocks is great enough to fulfill the request, we simply extend the block into this new block. If there is enough space left over at the end of this adjacent free block to create a new free block that is greater than the minimum block size once the realloc request has been fulfilled, the "remainder" of the second free block after it is allocated is split into a new free block. This extension into the adjacent block improves program throughput since the data within the original block no longer needs to be copied over into a new location, and the splitting function prevents unnecessary allocation of extra space (as described before).
+
+If extension is not possible, we then check if there is a free block large enough to fulfill the requested size. If there is, we copy the data over and free the original block which held the data before the realloc command was called. This newly freed block is then coalesced with any adjacent free blocks to maximize the size of free blocks and reduce compaction. Then, the free block into which the data will be copied is examined to determine if it is large enough to be split into a new, smaller free block once the data is copied (if the new free block will be larger than the minimum block size). If it is large enough, the requested size is returned, and the remainder of the block is freed and coalesced with any adjacent free blocks. If it is not large enough to create a viable new free block, the entire block is set to allocated and returned. 
+
+If no currently free block is large enough, we then test if the block immediately prior to the to the block to be realloced is free. If it is, the size of the combined prior free block and the block to be realloced is evaluated to determine if it is large enough to fulfill the realloc request. If it is, the blocks are combined, the data is moved to the beginning of the new block, and the new block is split if the "remainder" is larger than the minimum block size. This ensures that all possible avenues of expansion are exhausted before extending the heap (since heap expansion reduces space efficiency)  
+
+Finally, if there is not enough space in the heap to fulfill the realloc request, we extend the heap. We first check if the last block in the heap is already free or if the block to be realloced is already the last block in the heap. In this case, we don't need to extend the heap by the full amount of the requested size since the newly freed space can be combined with the current block to fulfill the realloc request. This minimizes the amount of extra space that needs to be added to the heap. If this is not the case, we simply extend the heap by the requested size. We move the data into this new block, free the current block, and coalesce the current block with any adjacent free blocks. These optimizations all serve to ensure that unnecessary space is not used, and the heap size is minimized. 
+
+4. Additional optimizations in mm_malloc():
+Similar to realloc, in mm_malloc if the chosen free block is large enough to be split into an allocated block and a free block which is larger than the minimum block size, the chosen free block will be split. This maximizes the amount of free space available to the user. 
+
+
+BUGS:
+No known bugs
